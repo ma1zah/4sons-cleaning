@@ -977,9 +977,28 @@ textarea:focus {
   border-top: 1px solid var(--line);
   display: grid;
   gap: 18px;
-  grid-template-columns: 1.5fr 0.8fr 0.8fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 30px;
   padding-top: 25px;
+  width: 100%;
+}
+
+.time-picker > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.time-picker > *,
+.time-picker label,
+.booked-list {
+  min-width: 0;
+}
+
+.time-picker input[type="time"] {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  text-align: center;
+  width: 100%;
 }
 
 .time-picker h3 {
@@ -1459,6 +1478,10 @@ textarea:focus {
   .time-picker {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .time-picker > div:first-child {
+    grid-column: auto;
   }
 
   .booking-summary span {
