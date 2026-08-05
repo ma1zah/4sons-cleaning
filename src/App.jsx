@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  CalendarDays,
-  Check,
-  ClipboardList,
-  LogOut,
-  Mail,
-  MapPin,
-  Phone,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react';
+import { Check } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import AdminPage from './AdminPage';
 
 const phone = '0426 482 554';
 const phoneHref = 'tel:0426482554';
@@ -67,14 +58,6 @@ const includedItems = [
   'Cobweb removal',
   'Light switches & internal dusting',
 ];
-
-const statusLabels = {
-  new: 'New',
-  contacted: 'Contacted',
-  confirmed: 'Confirmed',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-};
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -687,178 +670,6 @@ function Footer({ navigate }) {
       </nav>
       <small>© 2026 4 Sons Cleaning & Maintenance Services. *Offers and bond-back guarantee are subject to conditions.</small>
     </footer>
-  );
-}
-
-function AdminPage({ navigate }) {
-  const [adminEmail, setAdminEmail] = useState('');
-  const [session, setSession] = useState(null);
-  const [bookings, setBookings] = useState([]);
-  const [state, setState] = useState({ status: 'idle', message: '' });
-
-  const sortedBookings = useMemo(
-    () => [...bookings].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-    [bookings],
-  );
-
-  useEffect(() => {
-    if (!supabase) return;
-
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (session) fetchBookings();
-  }, [session]);
-
-  async function sendMagicLink(event) {
-    event.preventDefault();
-
-    if (!supabase) {
-      setState({ status: 'error', message: 'Supabase is not configured yet.' });
-      return;
-    }
-
-    setState({ status: 'loading', message: 'Sending sign-in link...' });
-    const { error } = await supabase.auth.signInWithOtp({
-      email: adminEmail,
-      options: { emailRedirectTo: window.location.href },
-    });
-
-    if (error) {
-      setState({ status: 'error', message: error.message });
-      return;
-    }
-
-    setState({ status: 'success', message: 'Check your email for the sign-in link.' });
-  }
-
-  async function fetchBookings() {
-    setState({ status: 'loading', message: 'Loading bookings...' });
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      setBookings([]);
-      setState({
-        status: 'error',
-        message: error.code === '42501'
-          ? 'Signed in, but this email is not in admin_users yet.'
-          : error.message,
-      });
-      return;
-    }
-
-    setBookings(data ?? []);
-    setState({ status: 'success', message: `${data?.length ?? 0} booking request${data?.length === 1 ? '' : 's'} loaded.` });
-  }
-
-  async function updateStatus(id, status) {
-    const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
-
-    if (error) {
-      setState({ status: 'error', message: error.message });
-      return;
-    }
-
-    setBookings((current) => current.map((booking) => (
-      booking.id === id ? { ...booking, status } : booking
-    )));
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    setBookings([]);
-  }
-
-  return (
-    <main className="admin-shell">
-      <nav className="admin-nav">
-        <Brand light navigate={navigate} />
-        <button type="button" onClick={() => navigate('home')}>Back to site</button>
-      </nav>
-
-      <section className="admin-hero">
-        <p className="pill">Private workspace</p>
-        <h1>Admin bookings</h1>
-        <p>Review quote requests, contact customers and update job status.</p>
-      </section>
-
-      {!session ? (
-        <form className="admin-login" onSubmit={sendMagicLink}>
-          <ShieldCheck />
-          <h2>Sign in to continue</h2>
-          <p>Use the admin email connected in Supabase.</p>
-          <label>
-            Admin email
-            <input
-              type="email"
-              required
-              value={adminEmail}
-              onChange={(event) => setAdminEmail(event.target.value)}
-              placeholder="admin@example.com"
-            />
-          </label>
-          <button type="submit">Send sign-in link</button>
-          {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
-        </form>
-      ) : (
-        <section className="admin-workspace">
-          <div className="workspace-bar">
-            <div>
-              <p>Signed in as</p>
-              <strong>{session.user.email}</strong>
-            </div>
-            <div>
-              <button type="button" onClick={fetchBookings}><RefreshCw /> Refresh</button>
-              <button type="button" onClick={signOut}><LogOut /> Sign out</button>
-            </div>
-          </div>
-
-          {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
-
-          {sortedBookings.length === 0 ? (
-            <div className="empty-admin">
-              <ClipboardList />
-              <h2>No bookings shown yet</h2>
-              <p>If bookings exist, make sure this signed-in email was added to public.admin_users.</p>
-            </div>
-          ) : (
-            <div className="admin-bookings">
-              {sortedBookings.map((booking) => (
-                <article className="admin-card" key={booking.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <p>{booking.service_type}</p>
-                      <h2>{booking.customer_name}</h2>
-                    </div>
-                    <select value={booking.status} onChange={(event) => updateStatus(booking.id, event.target.value)}>
-                      {Object.entries(statusLabels).map(([value, label]) => (
-                        <option value={value} key={value}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="admin-meta">
-                    <span><Phone /> {booking.phone}</span>
-                    {booking.email && <span><Mail /> {booking.email}</span>}
-                    <span><MapPin /> {booking.job_address}, {booking.suburb}</span>
-                    <span><CalendarDays /> {formatDate(booking.preferred_date)}</span>
-                  </div>
-                  {booking.customer_notes && <p className="admin-notes">{booking.customer_notes}</p>}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-    </main>
   );
 }
 
