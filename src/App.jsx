@@ -165,7 +165,7 @@ function HomePage({ navigate }) {
             <button type="button" onClick={() => navigate('booking')}>
               Check availability
             </button>
-            <a href="#quote">Request a free quote</a>
+            <a href="#quote">Make an enquiry</a>
           </div>
           <div className="hero-checks" aria-label="Service promises">
             <span>Experienced team</span>
@@ -183,7 +183,7 @@ function HomePage({ navigate }) {
 
       <div className="mobile-cta" aria-label="Quick contact actions">
         <a href={phoneHref}>Call now</a>
-        <button type="button" onClick={() => navigate('booking')}>Free quote</button>
+        <button type="button" onClick={() => navigate('booking')}>Enquire now</button>
       </div>
     </main>
   );
@@ -230,7 +230,7 @@ function ServicesSection() {
             <span>{String(index + 1).padStart(2, '0')}</span>
             <h3>{service.title}</h3>
             <p>{service.text}</p>
-            <a href="#quote">Get a quote &rarr;</a>
+            <a href="#quote">Enquire now &rarr;</a>
           </article>
         ))}
       </div>
@@ -273,7 +273,7 @@ function PricingSection() {
         <p className="eyebrow">Straightforward pricing</p>
         <h2>End-of-lease cleaning.</h2>
         <p>
-          Starting prices shown below. Final quotes depend on property condition,
+          Starting prices are shown below. Your final price depends on property condition,
           size and requested add-ons.
         </p>
       </div>
@@ -354,7 +354,7 @@ function QuoteSection() {
 
   function submitQuote(event) {
     event.preventDefault();
-    const mailto = `mailto:${email}?subject=${encodeURIComponent(`Quote request from ${form.customer_name}`)}&body=${encodeURIComponent(
+    const mailto = `mailto:${email}?subject=${encodeURIComponent(`Cleaning enquiry from ${form.customer_name}`)}&body=${encodeURIComponent(
       [
         `Name: ${form.customer_name}`,
         `Phone: ${form.phone}`,
@@ -370,7 +370,7 @@ function QuoteSection() {
   return (
     <section className="section quote-section" id="quote">
       <div className="quote-copy">
-        <p className="eyebrow">Free quote</p>
+        <p className="eyebrow">Make an enquiry</p>
         <h2>Tell us what needs cleaning.</h2>
         <p>
           Share a few details and your email app will open with everything ready to
@@ -426,7 +426,7 @@ function QuoteSection() {
           />
         </label>
         <button type="submit">
-          Prepare my quote request &rarr;
+          Prepare my enquiry &rarr;
         </button>
         <p className="form-note">This opens your email app. No information is stored on this website.</p>
       </form>
@@ -533,7 +533,7 @@ function BookingPage({ navigate }) {
       service_type: 'End of lease cleaning',
       customer_notes: '',
     });
-    setState({ status: 'success', message: 'Booking enquiry sent. The team will contact you to confirm the time and quote.' });
+    setState({ status: 'success', message: 'Booking enquiry sent. The team will contact you to confirm the time and final price.' });
   }
 
   return (
@@ -549,7 +549,7 @@ function BookingPage({ navigate }) {
           <h1>Choose your preferred<br />cleaning date.</h1>
           <p>
             Booked start times are shown on each date. Your selection is still a
-            request—the team will contact you to confirm the final time and quote.
+            request—the team will contact you to confirm the final time and price.
           </p>
         </div>
         <aside>
