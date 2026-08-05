@@ -596,31 +596,28 @@ h3 {
 }
 
 .contact-stack a,
-.contact-stack > span {
+.contact-stack > div {
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   color: white;
-  display: block;
+  display: grid;
+  gap: 8px;
   padding: 18px 0;
 }
 
-.contact-stack svg {
-  display: none;
-}
-
-.contact-stack span span {
+.contact-stack span {
   color: var(--green-light);
-  display: grid;
   font-size: 0.65rem;
   font-weight: 800;
-  gap: 8px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .contact-stack strong {
   color: white;
+  display: block;
   font-size: 0.98rem;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
   text-transform: none;
 }
 
