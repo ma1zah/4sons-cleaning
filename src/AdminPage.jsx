@@ -73,6 +73,12 @@ function displayStatus(status) {
   return status ? `${status.charAt(0).toUpperCase()}${status.slice(1)}` : 'Pending';
 }
 
+function adminErrorMessage(error) {
+  return error?.code === '23505'
+    ? 'That start time is already booked or blocked. Choose another time.'
+    : error.message;
+}
+
 function bookingPayload(values) {
   const nullableFields = [
     'customer_name', 'phone', 'email', 'suburb', 'job_address', 'service_type',
@@ -93,6 +99,7 @@ function AdminBookingCard({ booking, onSaved }) {
     scheduled_time: scheduledTime(booking),
   }));
   const [saveState, setSaveState] = useState('idle');
+  const [actionState, setActionState] = useState({ status: 'idle', message: '' });
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -111,11 +118,50 @@ function AdminBookingCard({ booking, onSaved }) {
       .single();
 
     if (error) {
-      setSaveState(error.message);
+      setSaveState(adminErrorMessage(error));
       return;
     }
 
     setSaveState('saved');
+    onSaved(data);
+  }
+
+  async function setDecision(status) {
+    const scheduleDate = draft.scheduled_date || booking.scheduled_date || booking.preferred_date;
+    const scheduleTime = draft.scheduled_time || booking.scheduled_time || booking.preferred_time;
+
+    if (status === 'confirmed' && (!scheduleDate || !scheduleTime)) {
+      setActionState({ status: 'error', message: 'Set a date and time before approving.' });
+      setOpen(true);
+      return;
+    }
+
+    setActionState({ status: 'loading', message: '' });
+    const payload = status === 'confirmed'
+      ? { status, scheduled_date: scheduleDate, scheduled_time: scheduleTime }
+      : { status };
+    const { data, error } = await supabase
+      .from('bookings')
+      .update(payload)
+      .eq('id', booking.id)
+      .select()
+      .single();
+
+    if (error) {
+      setActionState({ status: 'error', message: adminErrorMessage(error) });
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      ...data,
+      scheduled_date: scheduledDate(data),
+      scheduled_time: scheduledTime(data),
+    }));
+    setActionState({
+      status: 'success',
+      message: status === 'confirmed' ? 'Booking approved.' : 'Booking disapproved.',
+    });
     onSaved(data);
   }
 
@@ -132,9 +178,34 @@ function AdminBookingCard({ booking, onSaved }) {
           <strong>{booking.preferred_date ? formatLongDate(booking.preferred_date) : 'No preferred date'}</strong>
           <span>{formatTime(booking.preferred_time)}</span>
         </div>
-        {scheduledDate(booking) && (
-          <span className="scheduled-chip">Scheduled {formatTime(scheduledTime(booking))}</span>
-        )}
+        <div className="enquiry-actions">
+          {scheduledDate(booking) && (
+            <span className="scheduled-chip">Scheduled {formatTime(scheduledTime(booking))}</span>
+          )}
+          {!['completed', 'cancelled'].includes(booking.status) && (
+            <div className="approval-actions">
+              <button
+                className="approve-booking"
+                disabled={booking.status === 'confirmed' || actionState.status === 'loading'}
+                type="button"
+                onClick={() => setDecision('confirmed')}
+              >
+                {booking.status === 'confirmed' ? 'Approved' : 'Approve'}
+              </button>
+              <button
+                className="disapprove-booking"
+                disabled={booking.status === 'rejected' || actionState.status === 'loading'}
+                type="button"
+                onClick={() => setDecision('rejected')}
+              >
+                {booking.status === 'rejected' ? 'Disapproved' : 'Disapprove'}
+              </button>
+            </div>
+          )}
+          {actionState.message && (
+            <small className={`decision-message ${actionState.status}`}>{actionState.message}</small>
+          )}
+        </div>
       </div>
       <button className="manage-toggle" type="button" onClick={() => setOpen((current) => !current)}>
         {open ? 'Close details ↑' : 'View and manage ↓'}
@@ -175,6 +246,66 @@ function AdminBookingCard({ booking, onSaved }) {
   );
 }
 
+function GeneralEnquiryCard({ enquiry, onSaved }) {
+  const [status, setStatus] = useState(enquiry.status);
+  const [adminNotes, setAdminNotes] = useState(enquiry.admin_notes || '');
+  const [saveState, setSaveState] = useState('idle');
+
+  async function saveEnquiry(event) {
+    event.preventDefault();
+    setSaveState('saving');
+    const { data, error } = await supabase
+      .from('enquiries')
+      .update({ status, admin_notes: adminNotes.trim() || null })
+      .eq('id', enquiry.id)
+      .select()
+      .single();
+
+    if (error) {
+      setSaveState(error.message);
+      return;
+    }
+
+    setSaveState('saved');
+    onSaved(data);
+  }
+
+  return (
+    <article className="general-enquiry-card">
+      <div className="general-enquiry-head">
+        <div>
+          <span className={`status-chip status-${enquiry.status}`}>{displayStatus(enquiry.status)}</span>
+          <h3>{enquiry.customer_name}</h3>
+          <p>{enquiry.service_type}{enquiry.suburb ? ` · ${enquiry.suburb}` : ''}</p>
+        </div>
+        <time>{formatLongDate(enquiry.created_at.slice(0, 10))}</time>
+      </div>
+      <div className="general-enquiry-contact">
+        <a href={`tel:${enquiry.phone}`}>{enquiry.phone}</a>
+        {enquiry.email && <a href={`mailto:${enquiry.email}`}>{enquiry.email}</a>}
+      </div>
+      {enquiry.details && <p className="general-enquiry-details">{enquiry.details}</p>}
+      <form className="general-enquiry-manage" onSubmit={saveEnquiry}>
+        <label>Status
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+        <label>Private notes
+          <input value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} />
+        </label>
+        <button className="admin-primary" disabled={saveState === 'saving'} type="submit">
+          {saveState === 'saving' ? 'Saving...' : 'Save'}
+        </button>
+        {saveState === 'saved' && <span className="admin-saved">Saved</span>}
+        {!['idle', 'saving', 'saved'].includes(saveState) && <span className="admin-error-inline">{saveState}</span>}
+      </form>
+    </article>
+  );
+}
+
 export default function AdminPage({ navigate }) {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const [adminEmail, setAdminEmail] = useState('');
@@ -182,6 +313,7 @@ export default function AdminPage({ navigate }) {
   const [authReady, setAuthReady] = useState(false);
   const [authorised, setAuthorised] = useState(false);
   const [bookings, setBookings] = useState([]);
+  const [generalEnquiries, setGeneralEnquiries] = useState([]);
   const [blockedTimes, setBlockedTimes] = useState([]);
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(todayKey);
@@ -200,6 +332,7 @@ export default function AdminPage({ navigate }) {
     .filter((slot) => slot.blocked_date === selectedDate)
     .sort((a, b) => a.blocked_time.localeCompare(b.blocked_time));
   const pendingCount = bookings.filter((booking) => ['new', 'pending'].includes(booking.status)).length;
+  const newEnquiryCount = generalEnquiries.filter((enquiry) => enquiry.status === 'new').length;
   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const calendarDays = [
@@ -230,6 +363,7 @@ export default function AdminPage({ navigate }) {
     else {
       setAuthorised(false);
       setBookings([]);
+      setGeneralEnquiries([]);
       setBlockedTimes([]);
     }
   }, [session]);
@@ -265,18 +399,20 @@ export default function AdminPage({ navigate }) {
       return;
     }
 
-    const [bookingResult, blockedResult] = await Promise.all([
+    const [bookingResult, enquiryResult, blockedResult] = await Promise.all([
       supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('enquiries').select('*').order('created_at', { ascending: false }),
       supabase.from('blocked_times').select('*').order('blocked_date').order('blocked_time'),
     ]);
-    const error = bookingResult.error || blockedResult.error;
+    const error = bookingResult.error || enquiryResult.error || blockedResult.error;
     if (error) {
-      setState({ status: 'error', message: error.message });
+      setState({ status: 'error', message: adminErrorMessage(error) });
       return;
     }
 
     setAuthorised(true);
     setBookings(bookingResult.data ?? []);
+    setGeneralEnquiries(enquiryResult.data ?? []);
     setBlockedTimes(blockedResult.data ?? []);
     setState({ status: 'idle', message: '' });
   }
@@ -321,7 +457,7 @@ export default function AdminPage({ navigate }) {
     setState({ status: 'loading', message: 'Blocking time...' });
     const { data, error } = await supabase.from('blocked_times').insert(blockedForm).select().single();
     if (error) {
-      setState({ status: 'error', message: error.message.includes('duplicate') ? 'That time is already blocked.' : error.message });
+      setState({ status: 'error', message: adminErrorMessage(error) });
       return;
     }
     setBlockedTimes((current) => [...current, data]);
@@ -342,6 +478,12 @@ export default function AdminPage({ navigate }) {
   function updateBooking(savedBooking) {
     setBookings((current) => current.map((booking) => (
       booking.id === savedBooking.id ? savedBooking : booking
+    )));
+  }
+
+  function updateGeneralEnquiry(savedEnquiry) {
+    setGeneralEnquiries((current) => current.map((enquiry) => (
+      enquiry.id === savedEnquiry.id ? savedEnquiry : enquiry
     )));
   }
 
@@ -379,7 +521,8 @@ export default function AdminPage({ navigate }) {
         <nav aria-label="Admin sections">
           <a href="#calendar">Private calendar</a>
           <a href="#add-booking">Add booking</a>
-          <a href="#enquiries">Customer enquiries</a>
+          <a href="#booking-requests">Booking requests</a>
+          <a href="#general-enquiries">General enquiries</a>
           <a href="#blocked-times">Blocked times</a>
           <button type="button" onClick={() => navigate('home')}>Public website</button>
         </nav>
@@ -393,7 +536,10 @@ export default function AdminPage({ navigate }) {
       <section className="admin-main">
         <header className="admin-heading">
           <div><p className="admin-kicker">Private workspace</p><h1>Bookings</h1></div>
-          <div className="admin-stat"><strong>{pendingCount}</strong><span>Awaiting review</span></div>
+          <div className="admin-stats">
+            <div className="admin-stat"><strong>{pendingCount}</strong><span>Booking requests</span></div>
+            <div className="admin-stat"><strong>{newEnquiryCount}</strong><span>New enquiries</span></div>
+          </div>
         </header>
 
         {state.status === 'error' && (
@@ -487,14 +633,26 @@ export default function AdminPage({ navigate }) {
           </form>
         </section>
 
-        <section className="admin-section" id="enquiries">
+        <section className="admin-section" id="booking-requests">
           <div className="admin-section-head">
-            <div><p className="admin-kicker">Inbox</p><h2>Customer enquiries</h2></div>
-            <p>Approve requests or edit their private details.</p>
+            <div><p className="admin-kicker">Bookings</p><h2>Booking requests</h2></div>
+            <p>Approve or disapprove requested cleaning dates.</p>
           </div>
           <div className="enquiry-list">
-            {bookings.length === 0 ? <p className="admin-empty-copy">No customer enquiries yet.</p> : bookings.map((booking) => (
+            {bookings.length === 0 ? <p className="admin-empty-copy">No booking requests yet.</p> : bookings.map((booking) => (
               <div id={`booking-${booking.id}`} key={booking.id}><AdminBookingCard booking={booking} onSaved={updateBooking} /></div>
+            ))}
+          </div>
+        </section>
+
+        <section className="admin-section" id="general-enquiries">
+          <div className="admin-section-head">
+            <div><p className="admin-kicker">Inbox</p><h2>General enquiries</h2></div>
+            <p>Messages sent from the public enquiry form.</p>
+          </div>
+          <div className="general-enquiry-list">
+            {generalEnquiries.length === 0 ? <p className="admin-empty-copy">No general enquiries yet.</p> : generalEnquiries.map((enquiry) => (
+              <GeneralEnquiryCard enquiry={enquiry} key={enquiry.id} onSaved={updateGeneralEnquiry} />
             ))}
           </div>
         </section>
