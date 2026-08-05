@@ -1,31 +1,72 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
-  CheckCircle2,
+  Check,
   ClipboardList,
-  Home,
-  LockKeyhole,
+  LogOut,
   Mail,
   MapPin,
   Phone,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
-const initialBooking = {
-  customer_name: '',
-  phone: '',
-  email: '',
-  job_address: '',
-  suburb: '',
-  service_type: 'General house cleaning',
-  property_type: 'House',
-  preferred_date: '',
-  preferred_time: '',
-  customer_notes: '',
-};
+const phone = '0426 482 554';
+const phoneHref = 'tel:0426482554';
+const email = '4sonscleaningservices@gmail.com';
+
+const services = [
+  {
+    title: 'End of lease',
+    text: 'A detailed, top-to-bottom clean designed to leave your property inspection-ready.',
+  },
+  {
+    title: 'Home cleaning',
+    text: 'Reliable one-off or recurring cleaning shaped around your home and routine.',
+  },
+  {
+    title: 'Commercial cleaning',
+    text: 'Professional cleaning for offices, gyms and local business premises.',
+  },
+  {
+    title: 'Carpet steam cleaning',
+    text: 'A powerful refresh for tired carpets, available as a standalone service or add-on.',
+  },
+  {
+    title: 'Oven cleaning',
+    text: 'Built-up grease and residue handled carefully, including stovetop and rangehood.',
+  },
+  {
+    title: 'Window cleaning',
+    text: 'Internal glass, frames and tracks cleaned for a clearer, brighter finish.',
+  },
+];
+
+const apartmentPrices = [
+  ['Studio apartment', '$230'],
+  ['1 bedroom', '$290'],
+  ['2 bedrooms', '$390'],
+  ['3 bedrooms', '$490'],
+];
+
+const housePrices = [
+  ['2 bedroom house', '$400'],
+  ['3 bedroom house', '$450'],
+  ['4 bedroom house', '$600'],
+  ['5 bedroom house', '$750'],
+];
+
+const includedItems = [
+  'Kitchen deep clean',
+  'Oven, stovetop & rangehood',
+  'Bathrooms, shower glass & toilets',
+  'Bedrooms & living areas',
+  'Vacuuming & mopping',
+  'Skirting boards, doors & handles',
+  'Cobweb removal',
+  'Light switches & internal dusting',
+];
 
 const statusLabels = {
   new: 'New',
@@ -34,6 +75,23 @@ const statusLabels = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+function getRoute() {
+  const path = window.location.pathname;
+  const relativePath = basePath && path.startsWith(basePath)
+    ? path.slice(basePath.length) || '/'
+    : path;
+
+  if (relativePath.startsWith('/admin')) return 'admin';
+  if (relativePath.startsWith('/booking')) return 'booking';
+  return 'home';
+}
+
+function getAsset(path) {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
+}
 
 function formatDate(value) {
   if (!value) return 'Flexible';
@@ -45,35 +103,436 @@ function formatDate(value) {
 }
 
 function App() {
-  const [view, setView] = useState('book');
-  const [form, setForm] = useState(initialBooking);
-  const [submitState, setSubmitState] = useState({ status: 'idle', message: '' });
+  const [route, setRoute] = useState(getRoute);
+
+  useEffect(() => {
+    const updateRoute = () => setRoute(getRoute());
+    window.addEventListener('popstate', updateRoute);
+    return () => window.removeEventListener('popstate', updateRoute);
+  }, []);
+
+  function navigate(nextRoute) {
+    const nextPath = nextRoute === 'home' ? '/' : `/${nextRoute}`;
+    window.history.pushState({}, '', `${import.meta.env.BASE_URL}${nextPath.replace(/^\//, '')}`);
+    setRoute(nextRoute);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  if (route === 'admin') {
+    return <AdminPage navigate={navigate} />;
+  }
+
+  return <HomePage navigate={navigate} focusQuote={route === 'booking'} />;
+}
+
+function Brand({ light = false, navigate }) {
+  return (
+    <button className={`brand ${light ? 'brand-light' : ''}`} type="button" onClick={() => navigate('home')}>
+      <span>4</span>
+      <strong>
+        SONS
+        <small>CLEANING & MAINTENANCE</small>
+      </strong>
+    </button>
+  );
+}
+
+function HomePage({ navigate, focusQuote }) {
+  useEffect(() => {
+    if (focusQuote) {
+      document.getElementById('quote')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [focusQuote]);
+
+  return (
+    <main className="site-shell" id="top">
+      <Header navigate={navigate} />
+
+      <section className="hero-section">
+        <div className="hero-copy">
+          <p className="pill">Local. Reliable. Detail-driven.</p>
+          <h1>
+            A cleaner space.
+            <span>A lighter day.</span>
+          </h1>
+          <p>
+            Professional home, commercial and end-of-lease cleaning from a trusted
+            Melbourne-based team.
+          </p>
+          <div className="hero-actions">
+            <button type="button" onClick={() => navigate('booking')}>
+              Check availability
+            </button>
+            <a href="#quote">Request a free quote</a>
+          </div>
+          <div className="hero-checks" aria-label="Service promises">
+            <span>Experienced team</span>
+            <span>Affordable rates</span>
+            <span>On time, every time</span>
+          </div>
+        </div>
+
+        <div className="hero-image-card">
+          <img src={getAsset('/images/team-hero.jpeg')} alt="4 Sons Cleaning team with equipment" />
+          <div>
+            <strong>Serving Western Melbourne</strong>
+            <span>Homes, offices, leases and local businesses</span>
+          </div>
+        </div>
+      </section>
+
+      <ServicesSection />
+      <TeamSection />
+      <PricingSection />
+      <QuoteSection />
+      <Footer navigate={navigate} />
+
+      <div className="mobile-cta" aria-label="Quick contact actions">
+        <a href={phoneHref}>Call now</a>
+        <button type="button" onClick={() => navigate('booking')}>Free quote</button>
+      </div>
+    </main>
+  );
+}
+
+function Header({ navigate }) {
+  return (
+    <header className="top-strip">
+      <div className="service-area">
+        <span>Serving Western Melbourne & surrounding areas</span>
+        <a href={phoneHref}>Call {phone}</a>
+      </div>
+      <nav className="main-nav" aria-label="Main navigation">
+        <Brand navigate={navigate} />
+        <div className="nav-links">
+          <a href="#services">Services</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#about">Our team</a>
+          <button type="button" onClick={() => navigate('booking')}>Availability</button>
+        </div>
+        <button className="nav-quote" type="button" onClick={() => navigate('booking')}>
+          Request a date
+        </button>
+      </nav>
+    </header>
+  );
+}
+
+function ServicesSection() {
+  return (
+    <section className="section services-section" id="services">
+      <div className="section-heading">
+        <p className="eyebrow">What we do</p>
+        <h2>Cleaning that gets the details right.</h2>
+        <p>
+          From the final inspection to the weekly reset, we bring the equipment,
+          care and dependable team your property deserves.
+        </p>
+      </div>
+
+      <div className="services-grid">
+        {services.map((service, index) => (
+          <article className="service-card" key={service.title}>
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <h3>{service.title}</h3>
+            <p>{service.text}</p>
+            <a href="#quote">Get a quote &rarr;</a>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TeamSection() {
+  return (
+    <section className="section team-section" id="about">
+      <div className="team-image">
+        <img src={getAsset('/images/team-indoor.jpeg')} alt="4 Sons Cleaning team indoors" />
+      </div>
+      <div className="team-copy">
+        <p className="eyebrow">Meet the team</p>
+        <h2>
+          Your property,
+          <span>our priority.</span>
+        </h2>
+        <p>
+          We are a local cleaning team serving homes and businesses across Western
+          Melbourne. We believe good service is simple: arrive when promised, work
+          with care, and leave every space genuinely cleaner.
+        </p>
+        <div className="team-stats">
+          <span><strong>Local</strong> Melbourne based</span>
+          <span><strong>Prepared</strong> Professional equipment</span>
+          <span><strong>Thorough</strong> Attention to detail</span>
+          <span><strong>Reliable</strong> Clear communication</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PricingSection() {
+  return (
+    <section className="section pricing-section" id="pricing">
+      <div className="section-heading">
+        <p className="eyebrow">Straightforward pricing</p>
+        <h2>End-of-lease cleaning.</h2>
+        <p>
+          Starting prices shown below. Final quotes depend on property condition,
+          size and requested add-ons.
+        </p>
+      </div>
+
+      <div className="pricing-grid">
+        <PriceCard title="Apartments & units" prices={apartmentPrices} />
+        <PriceCard title="Houses" prices={housePrices} featured />
+      </div>
+
+      <div className="included-panel">
+        <h3>Your standard clean includes</h3>
+        <div>
+          {includedItems.map((item) => (
+            <span key={item}>
+              <Check />
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <p className="addons">
+        Optional add-ons: Carpet steam cleaning from $100 · Internal windows from $70 ·
+        Heavy oven cleaning from $70 · Pet hair removal from $40 · Mould treatment from $70
+      </p>
+
+      <div className="offers">
+        <Offer title="Opening offer" value="15% off" text="End-of-lease cleaning for the first 20 customers*" />
+        <Offer title="Community offer" value="10% off" text="For Filipino families & referrals*" />
+        <Offer title="Referral bonus" value="$30 off" text="For you and the friend you refer*" />
+      </div>
+    </section>
+  );
+}
+
+function PriceCard({ title, prices, featured = false }) {
+  return (
+    <article className={`price-card ${featured ? 'featured' : ''}`}>
+      {featured && <span className="popular">Popular</span>}
+      <h3>{title}</h3>
+      <div className="price-list">
+        {prices.map(([label, amount]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong><small>from</small>{amount}</strong>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function Offer({ title, value, text }) {
+  return (
+    <article>
+      <span>{title}</span>
+      <strong>{value}</strong>
+      <p>{text}</p>
+    </article>
+  );
+}
+
+function QuoteSection() {
+  const [form, setForm] = useState({
+    customer_name: '',
+    phone: '',
+    email: '',
+    job_address: '',
+    suburb: '',
+    service_type: 'End of lease cleaning',
+    property_type: 'House',
+    preferred_date: '',
+    customer_notes: '',
+  });
+  const [state, setState] = useState({ status: 'idle', message: '' });
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function submitQuote(event) {
+    event.preventDefault();
+    setState({ status: 'loading', message: 'Sending your request...' });
+
+    const mailto = `mailto:${email}?subject=${encodeURIComponent(`Quote request from ${form.customer_name}`)}&body=${encodeURIComponent(
+      [
+        `Name: ${form.customer_name}`,
+        `Phone: ${form.phone}`,
+        `Email: ${form.email || 'Not provided'}`,
+        `Address: ${form.job_address}`,
+        `Suburb: ${form.suburb}`,
+        `Service: ${form.service_type}`,
+        `Property: ${form.property_type}`,
+        `Preferred date: ${form.preferred_date || 'Flexible'}`,
+        '',
+        form.customer_notes || 'No extra details provided.',
+      ].join('\n'),
+    )}`;
+
+    if (!supabase) {
+      window.location.href = mailto;
+      setState({
+        status: 'success',
+        message: 'Your email app opened because Supabase is not configured yet.',
+      });
+      return;
+    }
+
+    const { error } = await supabase.from('bookings').insert({
+      ...form,
+      email: form.email || null,
+      preferred_date: form.preferred_date || null,
+      preferred_time: null,
+      customer_notes: form.customer_notes || null,
+    });
+
+    if (error) {
+      window.location.href = mailto;
+      setState({
+        status: 'error',
+        message: `Supabase did not accept the request, so your email app opened instead. ${error.message}`,
+      });
+      return;
+    }
+
+    setForm({
+      customer_name: '',
+      phone: '',
+      email: '',
+      job_address: '',
+      suburb: '',
+      service_type: 'End of lease cleaning',
+      property_type: 'House',
+      preferred_date: '',
+      customer_notes: '',
+    });
+    setState({
+      status: 'success',
+      message: 'Request sent. The team can now review it in the admin workspace.',
+    });
+  }
+
+  return (
+    <section className="section quote-section" id="quote">
+      <div className="quote-copy">
+        <p className="eyebrow">Free quote</p>
+        <h2>Tell us what needs cleaning.</h2>
+        <p>
+          Share a few details and the team can follow up with availability and a
+          quote. You can also contact the team directly.
+        </p>
+        <div className="contact-stack">
+          <a href={phoneHref}><Phone /> <span>Call us<strong>{phone}</strong></span></a>
+          <a href={`mailto:${email}`}><Mail /> <span>Email us<strong>{email}</strong></span></a>
+          <span><MapPin /> <span>Service area<strong>Western Melbourne & surrounds</strong></span></span>
+        </div>
+      </div>
+
+      <form className="quote-form" onSubmit={submitQuote}>
+        <label>
+          Name
+          <input name="customer_name" required value={form.customer_name} onChange={updateField} />
+        </label>
+        <label>
+          Phone
+          <input name="phone" required value={form.phone} onChange={updateField} />
+        </label>
+        <label>
+          Email
+          <input name="email" type="email" value={form.email} onChange={updateField} />
+        </label>
+        <label>
+          Cleaning address
+          <input name="job_address" required value={form.job_address} onChange={updateField} />
+        </label>
+        <label>
+          Suburb
+          <input name="suburb" required value={form.suburb} onChange={updateField} />
+        </label>
+        <label>
+          Property type
+          <select name="property_type" value={form.property_type} onChange={updateField}>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Office</option>
+            <option>Shop</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>
+          Service
+          <select name="service_type" value={form.service_type} onChange={updateField}>
+            <option>End of lease cleaning</option>
+            <option>Home cleaning</option>
+            <option>Commercial cleaning</option>
+            <option>Carpet steam cleaning</option>
+            <option>Oven cleaning</option>
+            <option>Window cleaning</option>
+          </select>
+        </label>
+        <label>
+          Preferred date
+          <input name="preferred_date" type="date" value={form.preferred_date} onChange={updateField} />
+        </label>
+        <label className="wide">
+          Property details
+          <textarea name="customer_notes" value={form.customer_notes} onChange={updateField} />
+        </label>
+        <button type="submit" disabled={state.status === 'loading'}>
+          {state.status === 'loading' ? 'Preparing request...' : 'Prepare my quote request'} &rarr;
+        </button>
+        {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
+        {!isSupabaseConfigured && (
+          <p className="form-note">This opens your email app. No information is stored on this website.</p>
+        )}
+      </form>
+    </section>
+  );
+}
+
+function Footer({ navigate }) {
+  return (
+    <footer className="site-footer">
+      <Brand light navigate={navigate} />
+      <p>Professional cleaning across Western Melbourne.</p>
+      <nav aria-label="Footer navigation">
+        <a href="#services">Services</a>
+        <a href="#pricing">Pricing</a>
+        <button type="button" onClick={() => navigate('booking')}>Availability</button>
+        <button type="button" onClick={() => navigate('admin')}>Admin</button>
+      </nav>
+      <small>© 2026 4 Sons Cleaning & Maintenance Services. *Offers and bond-back guarantee are subject to conditions.</small>
+    </footer>
+  );
+}
+
+function AdminPage({ navigate }) {
   const [adminEmail, setAdminEmail] = useState('');
   const [session, setSession] = useState(null);
   const [bookings, setBookings] = useState([]);
-  const [workspaceState, setWorkspaceState] = useState({
-    status: 'idle',
-    message: '',
-  });
+  const [state, setState] = useState({ status: 'idle', message: '' });
 
   const sortedBookings = useMemo(
-    () =>
-      [...bookings].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      ),
+    () => [...bookings].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
     [bookings],
   );
 
   useEffect(() => {
     if (!supabase) return;
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
     });
 
@@ -81,123 +540,64 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (view === 'workspace' && session) {
-      fetchBookings();
-    }
-  }, [view, session]);
-
-  function updateField(event) {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  }
-
-  async function submitBooking(event) {
-    event.preventDefault();
-    setSubmitState({ status: 'loading', message: 'Sending booking request...' });
-
-    if (!supabase) {
-      setSubmitState({
-        status: 'error',
-        message: 'Supabase is not configured yet. Add the VITE_SUPABASE values first.',
-      });
-      return;
-    }
-
-    const payload = {
-      ...form,
-      email: form.email || null,
-      preferred_date: form.preferred_date || null,
-      preferred_time: form.preferred_time || null,
-      customer_notes: form.customer_notes || null,
-    };
-
-    const { error } = await supabase.from('bookings').insert(payload);
-
-    if (error) {
-      setSubmitState({
-        status: 'error',
-        message: `Could not send booking: ${error.message}`,
-      });
-      return;
-    }
-
-    setForm(initialBooking);
-    setSubmitState({
-      status: 'success',
-      message: 'Booking request sent. The team can now see it in the workspace.',
-    });
-  }
+    if (session) fetchBookings();
+  }, [session]);
 
   async function sendMagicLink(event) {
     event.preventDefault();
-    setWorkspaceState({ status: 'loading', message: 'Sending sign-in link...' });
 
     if (!supabase) {
-      setWorkspaceState({
-        status: 'error',
-        message: 'Supabase is not configured yet. Add the VITE_SUPABASE values first.',
-      });
+      setState({ status: 'error', message: 'Supabase is not configured yet.' });
       return;
     }
 
+    setState({ status: 'loading', message: 'Sending sign-in link...' });
     const { error } = await supabase.auth.signInWithOtp({
       email: adminEmail,
-      options: {
-        emailRedirectTo: window.location.origin + window.location.pathname,
-      },
+      options: { emailRedirectTo: window.location.href },
     });
 
     if (error) {
-      setWorkspaceState({ status: 'error', message: error.message });
+      setState({ status: 'error', message: error.message });
       return;
     }
 
-    setWorkspaceState({
-      status: 'success',
-      message: 'Check that email for the sign-in link.',
-    });
+    setState({ status: 'success', message: 'Check your email for the sign-in link.' });
   }
 
   async function fetchBookings() {
-    setWorkspaceState({ status: 'loading', message: 'Loading bookings...' });
-
+    setState({ status: 'loading', message: 'Loading bookings...' });
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
-      setWorkspaceState({
-        status: 'error',
-        message:
-          error.code === '42501'
-            ? 'Signed in, but this user is not in admin_users yet.'
-            : error.message,
-      });
       setBookings([]);
+      setState({
+        status: 'error',
+        message: error.code === '42501'
+          ? 'Signed in, but this email is not in admin_users yet.'
+          : error.message,
+      });
       return;
     }
 
     setBookings(data ?? []);
-    setWorkspaceState({
-      status: 'success',
-      message: `${data?.length ?? 0} booking request${data?.length === 1 ? '' : 's'} loaded.`,
-    });
+    setState({ status: 'success', message: `${data?.length ?? 0} booking request${data?.length === 1 ? '' : 's'} loaded.` });
   }
 
   async function updateStatus(id, status) {
     const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
 
     if (error) {
-      setWorkspaceState({ status: 'error', message: error.message });
+      setState({ status: 'error', message: error.message });
       return;
     }
 
-    setBookings((current) =>
-      current.map((booking) =>
-        booking.id === id ? { ...booking, status } : booking,
-      ),
-    );
+    setBookings((current) => current.map((booking) => (
+      booking.id === id ? { ...booking, status } : booking
+    )));
   }
 
   async function signOut() {
@@ -206,361 +606,86 @@ function App() {
   }
 
   return (
-    <main>
-      <section className="hero">
-        <nav className="topbar">
-          <a className="brand" href="#top" aria-label="4 Sons Cleaning home">
-            <span>4</span>
-            <strong>Sons Cleaning</strong>
-          </a>
-          <div className="nav-actions" aria-label="View switcher">
-            <button
-              className={view === 'book' ? 'active' : ''}
-              type="button"
-              onClick={() => setView('book')}
-            >
-              Book
-            </button>
-            <button
-              className={view === 'workspace' ? 'active' : ''}
-              type="button"
-              onClick={() => setView('workspace')}
-            >
-              Workspace
-            </button>
-          </div>
-        </nav>
+    <main className="admin-shell">
+      <nav className="admin-nav">
+        <Brand light navigate={navigate} />
+        <button type="button" onClick={() => navigate('home')}>Back to site</button>
+      </nav>
 
-        <div className="hero-grid" id="top">
-          <div className="hero-copy">
-            <p className="eyebrow">Melbourne residential and commercial cleaning</p>
-            <h1>Book a cleaning job without the message chaos.</h1>
-            <p>
-              Customers send one clear request with the job address, preferred time,
-              and service type. The private workspace keeps every booking in one place.
-            </p>
-            <div className="hero-pills" aria-label="Services">
-              <span>House cleaning</span>
-              <span>Office cleaning</span>
-              <span>End-of-lease</span>
-              <span>Post-build</span>
-            </div>
-          </div>
-
-          <div className="hero-panel" aria-label="Booking workflow summary">
-            <div>
-              <Sparkles />
-              <span>Customer sends request</span>
-            </div>
-            <div>
-              <ClipboardList />
-              <span>Workspace receives booking</span>
-            </div>
-            <div>
-              <ShieldCheck />
-              <span>Admin confirms details</span>
-            </div>
-          </div>
-        </div>
+      <section className="admin-hero">
+        <p className="pill">Private workspace</p>
+        <h1>Admin bookings</h1>
+        <p>Review quote requests, contact customers and update job status.</p>
       </section>
 
-      {view === 'book' ? (
-        <BookingForm
-          form={form}
-          submitState={submitState}
-          updateField={updateField}
-          submitBooking={submitBooking}
-        />
-      ) : (
-        <Workspace
-          adminEmail={adminEmail}
-          setAdminEmail={setAdminEmail}
-          session={session}
-          workspaceState={workspaceState}
-          bookings={sortedBookings}
-          sendMagicLink={sendMagicLink}
-          fetchBookings={fetchBookings}
-          updateStatus={updateStatus}
-          signOut={signOut}
-        />
-      )}
-    </main>
-  );
-}
-
-function BookingForm({ form, submitState, updateField, submitBooking }) {
-  return (
-    <section className="section-grid">
-      <div className="section-copy">
-        <p className="eyebrow">Booking request</p>
-        <h2>Send the job details once.</h2>
-        <p>
-          The job address is where the cleaning team goes. Contact details are used
-          only to confirm the booking.
-        </p>
-        {!isSupabaseConfigured && (
-          <div className="notice error">
-            Supabase env vars are missing, so submissions are paused.
-          </div>
-        )}
-      </div>
-
-      <form className="booking-form" onSubmit={submitBooking}>
-        <label>
-          Full name
-          <input
-            required
-            name="customer_name"
-            autoComplete="name"
-            value={form.customer_name}
-            onChange={updateField}
-            placeholder="Customer name"
-          />
-        </label>
-
-        <div className="field-row">
-          <label>
-            Phone
-            <input
-              required
-              name="phone"
-              autoComplete="tel"
-              value={form.phone}
-              onChange={updateField}
-              placeholder="04..."
-            />
-          </label>
-          <label>
-            Email
-            <input
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={form.email}
-              onChange={updateField}
-              placeholder="Optional"
-            />
-          </label>
-        </div>
-
-        <label>
-          Job address
-          <input
-            required
-            name="job_address"
-            autoComplete="street-address"
-            value={form.job_address}
-            onChange={updateField}
-            placeholder="Street address for the cleaning job"
-          />
-        </label>
-
-        <div className="field-row">
-          <label>
-            Suburb
-            <input
-              required
-              name="suburb"
-              autoComplete="address-level2"
-              value={form.suburb}
-              onChange={updateField}
-              placeholder="Melton"
-            />
-          </label>
-          <label>
-            Property type
-            <select name="property_type" value={form.property_type} onChange={updateField}>
-              <option>House</option>
-              <option>Apartment</option>
-              <option>Office</option>
-              <option>Shop</option>
-              <option>Other</option>
-            </select>
-          </label>
-        </div>
-
-        <label>
-          Service type
-          <select name="service_type" value={form.service_type} onChange={updateField}>
-            <option>General house cleaning</option>
-            <option>Deep cleaning</option>
-            <option>Office cleaning</option>
-            <option>End-of-lease cleaning</option>
-            <option>Post-build cleaning</option>
-            <option>Custom cleaning job</option>
-          </select>
-        </label>
-
-        <div className="field-row">
-          <label>
-            Preferred date
-            <input
-              name="preferred_date"
-              type="date"
-              value={form.preferred_date}
-              onChange={updateField}
-            />
-          </label>
-          <label>
-            Preferred time
-            <input
-              name="preferred_time"
-              value={form.preferred_time}
-              onChange={updateField}
-              placeholder="Morning, afternoon, or exact time"
-            />
-          </label>
-        </div>
-
-        <label>
-          Notes
-          <textarea
-            name="customer_notes"
-            value={form.customer_notes}
-            onChange={updateField}
-            placeholder="Rooms, parking, access notes, preferred products..."
-          />
-        </label>
-
-        <button className="primary" type="submit" disabled={submitState.status === 'loading'}>
-          {submitState.status === 'loading' ? 'Sending...' : 'Send booking request'}
-        </button>
-
-        {submitState.message && (
-          <div className={`notice ${submitState.status}`}>{submitState.message}</div>
-        )}
-      </form>
-    </section>
-  );
-}
-
-function Workspace({
-  adminEmail,
-  setAdminEmail,
-  session,
-  workspaceState,
-  bookings,
-  sendMagicLink,
-  fetchBookings,
-  updateStatus,
-  signOut,
-}) {
-  if (!session) {
-    return (
-      <section className="section-grid workspace-login">
-        <div className="section-copy">
-          <p className="eyebrow">Private workspace</p>
-          <h2>Sign in to review bookings.</h2>
-          <p>
-            Use the admin email added in Supabase. This keeps customer addresses
-            and contact details behind Auth instead of sitting in the open.
-          </p>
-        </div>
-
-        <form className="booking-form compact" onSubmit={sendMagicLink}>
-          <LockKeyhole className="form-icon" />
+      {!session ? (
+        <form className="admin-login" onSubmit={sendMagicLink}>
+          <ShieldCheck />
+          <h2>Sign in to continue</h2>
+          <p>Use the admin email connected in Supabase.</p>
           <label>
             Admin email
             <input
-              required
               type="email"
+              required
               value={adminEmail}
               onChange={(event) => setAdminEmail(event.target.value)}
               placeholder="admin@example.com"
             />
           </label>
-          <button className="primary" type="submit">
-            Send sign-in link
-          </button>
-          {workspaceState.message && (
-            <div className={`notice ${workspaceState.status}`}>{workspaceState.message}</div>
-          )}
+          <button type="submit">Send sign-in link</button>
+          {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
         </form>
-      </section>
-    );
-  }
-
-  return (
-    <section className="workspace">
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">Private workspace</p>
-          <h2>Bookings</h2>
-          <p>{session.user.email}</p>
-        </div>
-        <div className="workspace-actions">
-          <button type="button" onClick={fetchBookings}>
-            <RefreshCw />
-            Refresh
-          </button>
-          <button type="button" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {workspaceState.message && (
-        <div className={`notice ${workspaceState.status}`}>{workspaceState.message}</div>
-      )}
-
-      {bookings.length === 0 ? (
-        <div className="empty-state">
-          <ClipboardList />
-          <h3>No bookings shown yet</h3>
-          <p>
-            If bookings exist, make sure this signed-in email was added to
-            `public.admin_users`.
-          </p>
-        </div>
       ) : (
-        <div className="booking-list">
-          {bookings.map((booking) => (
-            <article className="booking-card" key={booking.id}>
-              <div className="booking-card-head">
-                <div>
-                  <p>{booking.service_type}</p>
-                  <h3>{booking.customer_name}</h3>
-                </div>
-                <select
-                  aria-label={`Status for ${booking.customer_name}`}
-                  value={booking.status}
-                  onChange={(event) => updateStatus(booking.id, event.target.value)}
-                >
-                  {Object.entries(statusLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <section className="admin-workspace">
+          <div className="workspace-bar">
+            <div>
+              <p>Signed in as</p>
+              <strong>{session.user.email}</strong>
+            </div>
+            <div>
+              <button type="button" onClick={fetchBookings}><RefreshCw /> Refresh</button>
+              <button type="button" onClick={signOut}><LogOut /> Sign out</button>
+            </div>
+          </div>
 
-              <div className="booking-meta">
-                <span>
-                  <Phone /> {booking.phone}
-                </span>
-                {booking.email && (
-                  <span>
-                    <Mail /> {booking.email}
-                  </span>
-                )}
-                <span>
-                  <MapPin /> {booking.job_address}, {booking.suburb}
-                </span>
-                <span>
-                  <Home /> {booking.property_type}
-                </span>
-                <span>
-                  <CalendarDays /> {formatDate(booking.preferred_date)}
-                  {booking.preferred_time ? `, ${booking.preferred_time}` : ''}
-                </span>
-              </div>
+          {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
 
-              {booking.customer_notes && <p className="notes">{booking.customer_notes}</p>}
-            </article>
-          ))}
-        </div>
+          {sortedBookings.length === 0 ? (
+            <div className="empty-admin">
+              <ClipboardList />
+              <h2>No bookings shown yet</h2>
+              <p>If bookings exist, make sure this signed-in email was added to public.admin_users.</p>
+            </div>
+          ) : (
+            <div className="admin-bookings">
+              {sortedBookings.map((booking) => (
+                <article className="admin-card" key={booking.id}>
+                  <div className="admin-card-head">
+                    <div>
+                      <p>{booking.service_type}</p>
+                      <h2>{booking.customer_name}</h2>
+                    </div>
+                    <select value={booking.status} onChange={(event) => updateStatus(booking.id, event.target.value)}>
+                      {Object.entries(statusLabels).map(([value, label]) => (
+                        <option value={value} key={value}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="admin-meta">
+                    <span><Phone /> {booking.phone}</span>
+                    {booking.email && <span><Mail /> {booking.email}</span>}
+                    <span><MapPin /> {booking.job_address}, {booking.suburb}</span>
+                    <span><CalendarDays /> {formatDate(booking.preferred_date)}</span>
+                  </div>
+                  {booking.customer_notes && <p className="admin-notes">{booking.customer_notes}</p>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       )}
-    </section>
+    </main>
   );
 }
 
