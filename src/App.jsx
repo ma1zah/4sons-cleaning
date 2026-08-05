@@ -565,10 +565,6 @@ function BookingPage({ navigate }) {
               <p className="eyebrow">Step 1</p>
               <h2>Preferred day and time</h2>
             </div>
-            <div className="calendar-key">
-              <span><i className="available-dot" />Available</span>
-              <span><i className="booked-dot" />Booked time</span>
-            </div>
           </div>
 
           <div className="month-switcher">

@@ -846,35 +846,6 @@ textarea:focus {
   margin-bottom: 30px;
 }
 
-.calendar-key {
-  align-items: center;
-  color: var(--muted);
-  display: flex;
-  font-size: 0.67rem;
-  gap: 12px;
-}
-
-.calendar-key span {
-  align-items: center;
-  display: flex;
-  gap: 6px;
-}
-
-.calendar-key i {
-  border-radius: 50%;
-  display: inline-block;
-  height: 8px;
-  width: 8px;
-}
-
-.available-dot {
-  background: var(--green);
-}
-
-.booked-dot {
-  background: #d2d8dc;
-}
-
 .month-switcher {
   align-items: center;
   display: grid;
@@ -979,6 +950,8 @@ textarea:focus {
   gap: 18px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 30px;
+  max-width: 100%;
+  min-width: 0;
   padding-top: 25px;
   width: 100%;
 }
@@ -994,8 +967,13 @@ textarea:focus {
 }
 
 .time-picker input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
   display: block;
+  inline-size: 100%;
   max-width: 100%;
+  min-inline-size: 0;
   min-width: 0;
   text-align: center;
   width: 100%;
@@ -2000,11 +1978,25 @@ textarea:focus {
 
   .time-picker {
     align-items: stretch;
+    display: flex;
+    flex-direction: column;
     grid-template-columns: 1fr;
+    max-width: 100%;
+    overflow: hidden;
+    width: 100%;
   }
 
   .time-picker > div:first-child {
     grid-column: auto;
+  }
+
+  .time-picker label,
+  .time-picker input[type="time"],
+  .booked-list {
+    inline-size: 100%;
+    max-width: 100%;
+    min-inline-size: 0;
+    width: 100%;
   }
 
   .booking-summary span {
