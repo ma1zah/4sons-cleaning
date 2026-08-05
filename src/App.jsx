@@ -210,7 +210,7 @@ function Header({ navigate }) {
   return (
     <header className="top-strip">
       <div className="service-area">
-        <span>Serving Western Melbourne & surrounding areas</span>
+        <span>Serving Melbourne</span>
         <a href={phoneHref}>Call {phone}</a>
       </div>
       <nav className="main-nav" aria-label="Main navigation">
@@ -268,9 +268,9 @@ function TeamSection() {
           <span>our priority.</span>
         </h2>
         <p>
-          We are a local cleaning team serving homes and businesses across Western
-          Melbourne. We believe good service is simple: arrive when promised, work
-          with care, and leave every space genuinely cleaner.
+          We are a local cleaning team serving homes and businesses across Melbourne.
+          We believe good service is simple: arrive when promised, work with care,
+          and leave every space genuinely cleaner.
         </p>
         <div className="team-stats">
           <span><strong>Local</strong> Melbourne based</span>
@@ -394,9 +394,18 @@ function QuoteSection() {
           send. You can also contact the team directly.
         </p>
         <div className="contact-stack">
-          <a href={phoneHref}><Phone /> <span>Call us<strong>{phone}</strong></span></a>
-          <a href={`mailto:${email}`}><Mail /> <span>Email us<strong>{email}</strong></span></a>
-          <span><MapPin /> <span>Service area<strong>Western Melbourne & surrounds</strong></span></span>
+          <a href={phoneHref}>
+            <span>Call us</span>
+            <strong>{phone}</strong>
+          </a>
+          <a href={`mailto:${email}`}>
+            <span>Email us</span>
+            <strong>{email}</strong>
+          </a>
+          <div>
+            <span>Service area</span>
+            <strong>Melbourne</strong>
+          </div>
         </div>
       </div>
 
@@ -670,7 +679,7 @@ function Footer({ navigate }) {
   return (
     <footer className="site-footer">
       <Brand light navigate={navigate} />
-      <p>Professional cleaning across Western Melbourne.</p>
+      <p>Professional cleaning across Melbourne.</p>
       <nav aria-label="Footer navigation">
         <a href="#services">Services</a>
         <a href="#pricing">Pricing</a>
