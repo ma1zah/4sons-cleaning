@@ -93,6 +93,7 @@ function AdminBookingCard({ booking, onSaved }) {
     scheduled_time: scheduledTime(booking),
   }));
   const [saveState, setSaveState] = useState('idle');
+  const [actionState, setActionState] = useState({ status: 'idle', message: '' });
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -119,6 +120,45 @@ function AdminBookingCard({ booking, onSaved }) {
     onSaved(data);
   }
 
+  async function setDecision(status) {
+    const scheduleDate = draft.scheduled_date || booking.scheduled_date || booking.preferred_date;
+    const scheduleTime = draft.scheduled_time || booking.scheduled_time || booking.preferred_time;
+
+    if (status === 'confirmed' && (!scheduleDate || !scheduleTime)) {
+      setActionState({ status: 'error', message: 'Set a date and time before approving.' });
+      setOpen(true);
+      return;
+    }
+
+    setActionState({ status: 'loading', message: '' });
+    const payload = status === 'confirmed'
+      ? { status, scheduled_date: scheduleDate, scheduled_time: scheduleTime }
+      : { status };
+    const { data, error } = await supabase
+      .from('bookings')
+      .update(payload)
+      .eq('id', booking.id)
+      .select()
+      .single();
+
+    if (error) {
+      setActionState({ status: 'error', message: error.message });
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      ...data,
+      scheduled_date: scheduledDate(data),
+      scheduled_time: scheduledTime(data),
+    }));
+    setActionState({
+      status: 'success',
+      message: status === 'confirmed' ? 'Booking approved.' : 'Booking disapproved.',
+    });
+    onSaved(data);
+  }
+
   return (
     <article className="enquiry-card">
       <div className="enquiry-summary">
@@ -132,9 +172,34 @@ function AdminBookingCard({ booking, onSaved }) {
           <strong>{booking.preferred_date ? formatLongDate(booking.preferred_date) : 'No preferred date'}</strong>
           <span>{formatTime(booking.preferred_time)}</span>
         </div>
-        {scheduledDate(booking) && (
-          <span className="scheduled-chip">Scheduled {formatTime(scheduledTime(booking))}</span>
-        )}
+        <div className="enquiry-actions">
+          {scheduledDate(booking) && (
+            <span className="scheduled-chip">Scheduled {formatTime(scheduledTime(booking))}</span>
+          )}
+          {!['completed', 'cancelled'].includes(booking.status) && (
+            <div className="approval-actions">
+              <button
+                className="approve-booking"
+                disabled={booking.status === 'confirmed' || actionState.status === 'loading'}
+                type="button"
+                onClick={() => setDecision('confirmed')}
+              >
+                {booking.status === 'confirmed' ? 'Approved' : 'Approve'}
+              </button>
+              <button
+                className="disapprove-booking"
+                disabled={booking.status === 'rejected' || actionState.status === 'loading'}
+                type="button"
+                onClick={() => setDecision('rejected')}
+              >
+                {booking.status === 'rejected' ? 'Disapproved' : 'Disapprove'}
+              </button>
+            </div>
+          )}
+          {actionState.message && (
+            <small className={`decision-message ${actionState.status}`}>{actionState.message}</small>
+          )}
+        </div>
       </div>
       <button className="manage-toggle" type="button" onClick={() => setOpen((current) => !current)}>
         {open ? 'Close details ↑' : 'View and manage ↓'}
