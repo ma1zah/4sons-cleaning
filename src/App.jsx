@@ -394,9 +394,18 @@ function QuoteSection() {
           send. You can also contact the team directly.
         </p>
         <div className="contact-stack">
-          <a href={phoneHref}><Phone /> <span>Call us<strong>{phone}</strong></span></a>
-          <a href={`mailto:${email}`}><Mail /> <span>Email us<strong>{email}</strong></span></a>
-          <span><MapPin /> <span>Service area<strong>Western Melbourne & surrounds</strong></span></span>
+          <a href={phoneHref}>
+            <span>Call us</span>
+            <strong>{phone}</strong>
+          </a>
+          <a href={`mailto:${email}`}>
+            <span>Email us</span>
+            <strong>{email}</strong>
+          </a>
+          <div>
+            <span>Service area</span>
+            <strong>Western Melbourne & surrounds</strong>
+          </div>
         </div>
       </div>
 
