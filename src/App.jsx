@@ -141,6 +141,31 @@ function Brand({ light = false, navigate }) {
 }
 
 function HomePage({ navigate }) {
+  useEffect(() => {
+    const elements = document.querySelectorAll('.site-shell [data-reveal]');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      elements.forEach((element) => element.classList.add('is-visible'));
+      return undefined;
+    }
+
+    document.documentElement.classList.add('reveal-ready');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -45px', threshold: 0.12 });
+
+    elements.forEach((element) => observer.observe(element));
+    return () => {
+      observer.disconnect();
+      document.documentElement.classList.remove('reveal-ready');
+    };
+  }, []);
+
   return (
     <main className="site-shell" id="top">
       <Header navigate={navigate} />
@@ -183,7 +208,7 @@ function HomePage({ navigate }) {
 
       <div className="mobile-cta" aria-label="Quick contact actions">
         <a href={phoneHref}>Call now</a>
-        <button type="button" onClick={() => navigate('booking')}>Enquire now</button>
+        <a href="#quote">Enquire now</a>
       </div>
     </main>
   );
@@ -215,7 +240,7 @@ function Header({ navigate }) {
 function ServicesSection() {
   return (
     <section className="section services-section" id="services">
-      <div className="section-heading">
+      <div className="section-heading" data-reveal>
         <p className="eyebrow">What we do</p>
         <h2>Cleaning that gets the details right.</h2>
         <p>
@@ -224,7 +249,7 @@ function ServicesSection() {
         </p>
       </div>
 
-      <div className="services-grid">
+      <div className="services-grid" data-reveal>
         {services.map((service, index) => (
           <article className="service-card" key={service.title}>
             <span>{String(index + 1).padStart(2, '0')}</span>
@@ -241,10 +266,10 @@ function ServicesSection() {
 function TeamSection() {
   return (
     <section className="section team-section" id="about">
-      <div className="team-image">
+      <div className="team-image" data-reveal>
         <img src={getAsset('/images/team-indoor.jpeg')} alt="4 Sons Cleaning team indoors" />
       </div>
-      <div className="team-copy">
+      <div className="team-copy" data-reveal>
         <p className="eyebrow">Meet the team</p>
         <h2>
           Your property,
@@ -269,7 +294,7 @@ function TeamSection() {
 function PricingSection() {
   return (
     <section className="section pricing-section" id="pricing">
-      <div className="section-heading">
+      <div className="section-heading" data-reveal>
         <p className="eyebrow">Straightforward pricing</p>
         <h2>End-of-lease cleaning.</h2>
         <p>
@@ -278,7 +303,7 @@ function PricingSection() {
         </p>
       </div>
 
-      <div className="pricing-grid">
+      <div className="pricing-grid" data-reveal>
         <PriceCard title="Apartments & units" prices={apartmentPrices} />
         <PriceCard title="Houses" prices={housePrices} featured />
         <div className="included-panel">
@@ -302,7 +327,7 @@ function PricingSection() {
         </div>
       </div>
 
-      <div className="offers">
+      <div className="offers" data-reveal>
         <Offer title="Opening offer" value="15% off" text="End-of-lease cleaning for the first 20 customers*" />
         <Offer title="Community offer" value="10% off" text="For Filipino families & referrals*" />
         <Offer title="Referral bonus" value="$30 off" text="For you and the friend you refer*" />
@@ -342,39 +367,60 @@ function QuoteSection() {
   const [form, setForm] = useState({
     customer_name: '',
     phone: '',
+    email: '',
     suburb: '',
     service_type: 'End of lease cleaning',
     customer_notes: '',
   });
+  const [state, setState] = useState({ status: 'idle', message: '' });
 
   function updateField(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  function submitQuote(event) {
+  async function submitQuote(event) {
     event.preventDefault();
-    const mailto = `mailto:${email}?subject=${encodeURIComponent(`Cleaning enquiry from ${form.customer_name}`)}&body=${encodeURIComponent(
-      [
-        `Name: ${form.customer_name}`,
-        `Phone: ${form.phone}`,
-        `Suburb: ${form.suburb}`,
-        `Service: ${form.service_type}`,
-        '',
-        form.customer_notes || 'No extra details provided.',
-      ].join('\n'),
-    )}`;
-    window.location.href = mailto;
+
+    if (!supabase) {
+      setState({ status: 'error', message: 'Online enquiries are temporarily unavailable. Please call or email the team.' });
+      return;
+    }
+
+    setState({ status: 'loading', message: 'Sending your enquiry...' });
+    const { error } = await supabase.from('enquiries').insert({
+      customer_name: form.customer_name,
+      phone: form.phone,
+      email: form.email || null,
+      suburb: form.suburb,
+      service_type: form.service_type,
+      details: form.customer_notes || null,
+    });
+
+    if (error) {
+      setState({ status: 'error', message: 'Your enquiry could not be sent. Please try again or contact the team directly.' });
+      return;
+    }
+
+    setForm({
+      customer_name: '',
+      phone: '',
+      email: '',
+      suburb: '',
+      service_type: 'End of lease cleaning',
+      customer_notes: '',
+    });
+    setState({ status: 'success', message: 'Enquiry sent. The team will contact you shortly.' });
   }
 
   return (
     <section className="section quote-section" id="quote">
-      <div className="quote-copy">
+      <div className="quote-copy" data-reveal>
         <p className="eyebrow">Make an enquiry</p>
         <h2>Tell us what needs cleaning.</h2>
         <p>
-          Share a few details and your email app will open with everything ready to
-          send. You can also contact the team directly.
+          Share a few details and they will go directly to the team. You can also
+          call or email us if you prefer.
         </p>
         <div className="contact-stack">
           <a href={phoneHref}>
@@ -392,7 +438,7 @@ function QuoteSection() {
         </div>
       </div>
 
-      <form className="quote-form" onSubmit={submitQuote}>
+      <form className="quote-form" data-reveal onSubmit={submitQuote}>
         <label>
           Name
           <input name="customer_name" placeholder="Your name" required value={form.customer_name} onChange={updateField} />
@@ -400,6 +446,10 @@ function QuoteSection() {
         <label>
           Phone
           <input name="phone" placeholder="04xx xxx xxx" required value={form.phone} onChange={updateField} />
+        </label>
+        <label>
+          Email (optional)
+          <input name="email" type="email" placeholder="you@example.com" value={form.email} onChange={updateField} />
         </label>
         <label>
           Suburb
@@ -425,10 +475,11 @@ function QuoteSection() {
             onChange={updateField}
           />
         </label>
-        <button type="submit">
-          Prepare my enquiry &rarr;
+        <button disabled={state.status === 'loading'} type="submit">
+          {state.status === 'loading' ? 'Sending...' : 'Send my enquiry →'}
         </button>
-        <p className="form-note">This opens your email app. No information is stored on this website.</p>
+        <p className="form-note">Your details are sent securely to 4 Sons Cleaning.</p>
+        {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
       </form>
     </section>
   );
@@ -462,6 +513,9 @@ function BookingPage({ navigate }) {
     ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
   ];
   const selectedSlots = bookedSlots.filter((slot) => slot.booked_date === selectedDate);
+  const selectedTimeUnavailable = selectedSlots.some(
+    (slot) => slot.booked_time.slice(0, 5) === preferredTime,
+  );
   const canGoBack = month > new Date(today.getFullYear(), today.getMonth(), 1);
 
   useEffect(() => {
@@ -507,6 +561,26 @@ function BookingPage({ navigate }) {
 
     if (!supabase) {
       setState({ status: 'error', message: 'Online booking is temporarily unavailable. Please call or email the team.' });
+      return;
+    }
+
+    const { data: latestSlots, error: availabilityError } = await supabase
+      .from('availability_slots')
+      .select('booked_time')
+      .eq('booked_date', selectedDate);
+    const timeWasTaken = latestSlots?.some((slot) => slot.booked_time.slice(0, 5) === preferredTime);
+
+    if (availabilityError) {
+      setState({ status: 'error', message: 'Availability could not be checked. Please try again.' });
+      return;
+    }
+
+    if (timeWasTaken) {
+      setBookedSlots((current) => [
+        ...current.filter((slot) => slot.booked_date !== selectedDate),
+        ...latestSlots.map((slot) => ({ booked_date: selectedDate, booked_time: slot.booked_time })),
+      ]);
+      setState({ status: 'error', message: 'That start time is unavailable. Please choose another time.' });
       return;
     }
 
@@ -606,12 +680,21 @@ function BookingPage({ navigate }) {
               </div>
               <label>
                 Preferred start time
-                <input type="time" value={preferredTime} onChange={(event) => setPreferredTime(event.target.value)} />
+                <input
+                  aria-invalid={selectedTimeUnavailable}
+                  type="time"
+                  value={preferredTime}
+                  onChange={(event) => {
+                    setPreferredTime(event.target.value);
+                    setState({ status: 'idle', message: '' });
+                  }}
+                />
               </label>
               <div className="booked-list">
                 <span>Already booked</span>
                 <strong>{selectedSlots.length ? selectedSlots.map((slot) => formatTime(slot.booked_time)).join(', ') : 'No booked times'}</strong>
               </div>
+              {selectedTimeUnavailable && <p className="time-warning">That exact start time is unavailable.</p>}
             </div>
           )}
         </div>
@@ -644,7 +727,7 @@ function BookingPage({ navigate }) {
             <span>Preferred date<strong>{selectedDate ? new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${selectedDate}T00:00:00`)) : 'Choose a date'}</strong></span>
             <span>Preferred start<strong>{formatTime(preferredTime)}</strong></span>
           </div>
-          <button className="booking-submit" disabled={!selectedDate || state.status === 'loading'} type="submit">
+          <button className="booking-submit" disabled={!selectedDate || selectedTimeUnavailable || state.status === 'loading'} type="submit">
             {state.status === 'loading' ? 'Sending…' : 'Send booking enquiry →'}
           </button>
           {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
