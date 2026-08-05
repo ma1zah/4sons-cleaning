@@ -10,7 +10,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { supabase } from './lib/supabase';
 
 const phone = '0426 482 554';
 const phoneHref = 'tel:0426482554';
@@ -80,12 +80,12 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 function getRoute() {
   const path = window.location.pathname;
-  const relativePath = basePath && path.startsWith(basePath)
+  const relativePath = basePath && basePath !== '.' && path.startsWith(basePath)
     ? path.slice(basePath.length) || '/'
     : path;
 
-  if (relativePath.startsWith('/admin')) return 'admin';
-  if (relativePath.startsWith('/booking')) return 'booking';
+  if (/\/admin\/?$/.test(relativePath)) return 'admin';
+  if (/\/booking\/?$/.test(relativePath)) return 'booking';
   return 'home';
 }
 
@@ -100,6 +100,22 @@ function formatDate(value) {
     month: 'short',
     year: 'numeric',
   }).format(new Date(`${value}T00:00:00`));
+}
+
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatTime(value) {
+  if (!value) return '';
+  const [hours, minutes] = value.slice(0, 5).split(':').map(Number);
+  return new Intl.DateTimeFormat('en-AU', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(2000, 0, 1, hours, minutes));
 }
 
 function App() {
@@ -122,7 +138,11 @@ function App() {
     return <AdminPage navigate={navigate} />;
   }
 
-  return <HomePage navigate={navigate} focusQuote={route === 'booking'} />;
+  if (route === 'booking') {
+    return <BookingPage navigate={navigate} />;
+  }
+
+  return <HomePage navigate={navigate} />;
 }
 
 function Brand({ light = false, navigate }) {
@@ -137,18 +157,17 @@ function Brand({ light = false, navigate }) {
   );
 }
 
-function HomePage({ navigate, focusQuote }) {
-  useEffect(() => {
-    if (focusQuote) {
-      document.getElementById('quote')?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [focusQuote]);
-
+function HomePage({ navigate }) {
   return (
     <main className="site-shell" id="top">
       <Header navigate={navigate} />
 
       <section className="hero-section">
+        <img
+          className="hero-background"
+          src={getAsset('/images/team-hero.jpeg')}
+          alt="The 4 Sons Cleaning team with professional cleaning equipment"
+        />
         <div className="hero-copy">
           <p className="pill">Local. Reliable. Detail-driven.</p>
           <h1>
@@ -169,14 +188,6 @@ function HomePage({ navigate, focusQuote }) {
             <span>Experienced team</span>
             <span>Affordable rates</span>
             <span>On time, every time</span>
-          </div>
-        </div>
-
-        <div className="hero-image-card">
-          <img src={getAsset('/images/team-hero.jpeg')} alt="4 Sons Cleaning team with equipment" />
-          <div>
-            <strong>Serving Western Melbourne</strong>
-            <span>Homes, offices, leases and local businesses</span>
           </div>
         </div>
       </section>
@@ -287,24 +298,26 @@ function PricingSection() {
       <div className="pricing-grid">
         <PriceCard title="Apartments & units" prices={apartmentPrices} />
         <PriceCard title="Houses" prices={housePrices} featured />
-      </div>
-
-      <div className="included-panel">
-        <h3>Your standard clean includes</h3>
-        <div>
-          {includedItems.map((item) => (
-            <span key={item}>
-              <Check />
-              {item}
-            </span>
-          ))}
+        <div className="included-panel">
+          <h3>Your standard clean includes</h3>
+          <div>
+            {includedItems.map((item) => (
+              <span key={item}>
+                <Check />
+                {item}
+              </span>
+            ))}
+          </div>
+          <div className="addons">
+            <strong>Optional add-ons</strong>
+            <p>
+              Carpet steam cleaning from $100 · Internal windows from $70 · Heavy
+              oven cleaning from $70 · Pet hair removal from $40 · Mould treatment
+              from $70
+            </p>
+          </div>
         </div>
       </div>
-
-      <p className="addons">
-        Optional add-ons: Carpet steam cleaning from $100 · Internal windows from $70 ·
-        Heavy oven cleaning from $70 · Pet hair removal from $40 · Mould treatment from $70
-      </p>
 
       <div className="offers">
         <Offer title="Opening offer" value="15% off" text="End-of-lease cleaning for the first 20 customers*" />
@@ -346,81 +359,29 @@ function QuoteSection() {
   const [form, setForm] = useState({
     customer_name: '',
     phone: '',
-    email: '',
-    job_address: '',
     suburb: '',
     service_type: 'End of lease cleaning',
-    property_type: 'House',
-    preferred_date: '',
     customer_notes: '',
   });
-  const [state, setState] = useState({ status: 'idle', message: '' });
 
   function updateField(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  async function submitQuote(event) {
+  function submitQuote(event) {
     event.preventDefault();
-    setState({ status: 'loading', message: 'Sending your request...' });
-
     const mailto = `mailto:${email}?subject=${encodeURIComponent(`Quote request from ${form.customer_name}`)}&body=${encodeURIComponent(
       [
         `Name: ${form.customer_name}`,
         `Phone: ${form.phone}`,
-        `Email: ${form.email || 'Not provided'}`,
-        `Address: ${form.job_address}`,
         `Suburb: ${form.suburb}`,
         `Service: ${form.service_type}`,
-        `Property: ${form.property_type}`,
-        `Preferred date: ${form.preferred_date || 'Flexible'}`,
         '',
         form.customer_notes || 'No extra details provided.',
       ].join('\n'),
     )}`;
-
-    if (!supabase) {
-      window.location.href = mailto;
-      setState({
-        status: 'success',
-        message: 'Your email app opened because Supabase is not configured yet.',
-      });
-      return;
-    }
-
-    const { error } = await supabase.from('bookings').insert({
-      ...form,
-      email: form.email || null,
-      preferred_date: form.preferred_date || null,
-      preferred_time: null,
-      customer_notes: form.customer_notes || null,
-    });
-
-    if (error) {
-      window.location.href = mailto;
-      setState({
-        status: 'error',
-        message: `Supabase did not accept the request, so your email app opened instead. ${error.message}`,
-      });
-      return;
-    }
-
-    setForm({
-      customer_name: '',
-      phone: '',
-      email: '',
-      job_address: '',
-      suburb: '',
-      service_type: 'End of lease cleaning',
-      property_type: 'House',
-      preferred_date: '',
-      customer_notes: '',
-    });
-    setState({
-      status: 'success',
-      message: 'Request sent. The team can now review it in the admin workspace.',
-    });
+    window.location.href = mailto;
   }
 
   return (
@@ -429,8 +390,8 @@ function QuoteSection() {
         <p className="eyebrow">Free quote</p>
         <h2>Tell us what needs cleaning.</h2>
         <p>
-          Share a few details and the team can follow up with availability and a
-          quote. You can also contact the team directly.
+          Share a few details and your email app will open with everything ready to
+          send. You can also contact the team directly.
         </p>
         <div className="contact-stack">
           <a href={phoneHref}><Phone /> <span>Call us<strong>{phone}</strong></span></a>
@@ -442,33 +403,15 @@ function QuoteSection() {
       <form className="quote-form" onSubmit={submitQuote}>
         <label>
           Name
-          <input name="customer_name" required value={form.customer_name} onChange={updateField} />
+          <input name="customer_name" placeholder="Your name" required value={form.customer_name} onChange={updateField} />
         </label>
         <label>
           Phone
-          <input name="phone" required value={form.phone} onChange={updateField} />
-        </label>
-        <label>
-          Email
-          <input name="email" type="email" value={form.email} onChange={updateField} />
-        </label>
-        <label>
-          Cleaning address
-          <input name="job_address" required value={form.job_address} onChange={updateField} />
+          <input name="phone" placeholder="04xx xxx xxx" required value={form.phone} onChange={updateField} />
         </label>
         <label>
           Suburb
-          <input name="suburb" required value={form.suburb} onChange={updateField} />
-        </label>
-        <label>
-          Property type
-          <select name="property_type" value={form.property_type} onChange={updateField}>
-            <option>House</option>
-            <option>Apartment</option>
-            <option>Office</option>
-            <option>Shop</option>
-            <option>Other</option>
-          </select>
+          <input name="suburb" placeholder="Your suburb" required value={form.suburb} onChange={updateField} />
         </label>
         <label>
           Service
@@ -481,23 +424,245 @@ function QuoteSection() {
             <option>Window cleaning</option>
           </select>
         </label>
-        <label>
-          Preferred date
-          <input name="preferred_date" type="date" value={form.preferred_date} onChange={updateField} />
-        </label>
         <label className="wide">
           Property details
-          <textarea name="customer_notes" value={form.customer_notes} onChange={updateField} />
+          <textarea
+            name="customer_notes"
+            placeholder="Property size, preferred date and anything we should know…"
+            value={form.customer_notes}
+            onChange={updateField}
+          />
         </label>
-        <button type="submit" disabled={state.status === 'loading'}>
-          {state.status === 'loading' ? 'Preparing request...' : 'Prepare my quote request'} &rarr;
+        <button type="submit">
+          Prepare my quote request &rarr;
         </button>
-        {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
-        {!isSupabaseConfigured && (
-          <p className="form-note">This opens your email app. No information is stored on this website.</p>
-        )}
+        <p className="form-note">This opens your email app. No information is stored on this website.</p>
       </form>
     </section>
+  );
+}
+
+function BookingPage({ navigate }) {
+  const today = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }, []);
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState('');
+  const [preferredTime, setPreferredTime] = useState('09:00');
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const [form, setForm] = useState({
+    customer_name: '',
+    email: '',
+    phone: '',
+    suburb: '',
+    job_address: '',
+    service_type: 'End of lease cleaning',
+    customer_notes: '',
+  });
+  const [state, setState] = useState({ status: 'idle', message: '' });
+
+  const monthName = new Intl.DateTimeFormat('en-AU', { month: 'long' }).format(month);
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const calendarDays = [
+    ...Array(monthStart.getDay()).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+  const selectedSlots = bookedSlots.filter((slot) => slot.booked_date === selectedDate);
+  const canGoBack = month > new Date(today.getFullYear(), today.getMonth(), 1);
+
+  useEffect(() => {
+    async function loadAvailability() {
+      if (!supabase) return;
+
+      const lastVisibleDate = new Date(today.getFullYear() + 1, today.getMonth() + 1, 0);
+      const { data, error } = await supabase
+        .from('availability_slots')
+        .select('booked_date, booked_time')
+        .gte('booked_date', toDateKey(today))
+        .lte('booked_date', toDateKey(lastVisibleDate))
+        .order('booked_date')
+        .order('booked_time');
+
+      if (!error) setBookedSlots(data ?? []);
+    }
+
+    loadAvailability();
+  }, [today]);
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function chooseDay(day) {
+    if (!day) return;
+    const date = new Date(month.getFullYear(), month.getMonth(), day);
+    if (date < today) return;
+    setSelectedDate(toDateKey(date));
+    setState({ status: 'idle', message: '' });
+  }
+
+  function moveMonth(offset) {
+    setMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+    setSelectedDate('');
+  }
+
+  async function submitBooking(event) {
+    event.preventDefault();
+    if (!selectedDate) return;
+
+    if (!supabase) {
+      setState({ status: 'error', message: 'Online booking is temporarily unavailable. Please call or email the team.' });
+      return;
+    }
+
+    setState({ status: 'loading', message: 'Sending your booking enquiry...' });
+    const { error } = await supabase.from('bookings').insert({
+      ...form,
+      property_type: 'Not specified',
+      preferred_date: selectedDate,
+      preferred_time: preferredTime,
+      customer_notes: form.customer_notes || null,
+    });
+
+    if (error) {
+      setState({ status: 'error', message: 'Your enquiry could not be sent. Please try again or contact the team directly.' });
+      return;
+    }
+
+    setForm({
+      customer_name: '',
+      email: '',
+      phone: '',
+      suburb: '',
+      job_address: '',
+      service_type: 'End of lease cleaning',
+      customer_notes: '',
+    });
+    setState({ status: 'success', message: 'Booking enquiry sent. The team will contact you to confirm the time and quote.' });
+  }
+
+  return (
+    <main className="booking-shell">
+      <nav className="booking-nav">
+        <Brand navigate={navigate} />
+        <button type="button" onClick={() => navigate('home')}>&larr; Back to website</button>
+      </nav>
+
+      <section className="booking-intro">
+        <div>
+          <p className="eyebrow">Booking request</p>
+          <h1>Choose your preferred<br />cleaning date.</h1>
+          <p>
+            Booked start times are shown on each date. Your selection is still a
+            request—the team will contact you to confirm the final time and quote.
+          </p>
+        </div>
+        <aside>
+          <strong>Privacy by design</strong>
+          <span>Only booked times appear publicly. Customer names, contacts and addresses stay private.</span>
+        </aside>
+      </section>
+
+      <section className="booking-layout">
+        <div className="calendar-panel">
+          <div className="booking-panel-head">
+            <div>
+              <p className="eyebrow">Step 1</p>
+              <h2>Preferred day and time</h2>
+            </div>
+            <div className="calendar-key">
+              <span><i className="available-dot" />Available</span>
+              <span><i className="booked-dot" />Booked time</span>
+            </div>
+          </div>
+
+          <div className="month-switcher">
+            <button type="button" aria-label="Previous month" disabled={!canGoBack} onClick={() => moveMonth(-1)}>&larr;</button>
+            <div><strong>{monthName}</strong><span>{month.getFullYear()}</span></div>
+            <button type="button" aria-label="Next month" onClick={() => moveMonth(1)}>&rarr;</button>
+          </div>
+
+          <div className="calendar-weekdays" aria-hidden="true">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="calendar-grid">
+            {calendarDays.map((day, index) => {
+              if (!day) return <span className="calendar-blank" key={`blank-${index}`} />;
+              const date = new Date(month.getFullYear(), month.getMonth(), day);
+              const dateKey = toDateKey(date);
+              const slots = bookedSlots.filter((slot) => slot.booked_date === dateKey);
+              const disabled = date < today;
+              return (
+                <button
+                  className={`${selectedDate === dateKey ? 'selected' : ''} ${slots.length ? 'has-booking' : ''}`}
+                  disabled={disabled}
+                  key={dateKey}
+                  type="button"
+                  onClick={() => chooseDay(day)}
+                >
+                  <strong>{day}</strong>
+                  {slots.map((slot) => <em key={`${dateKey}-${slot.booked_time}`}>Booked · {formatTime(slot.booked_time)}</em>)}
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedDate && (
+            <div className="time-picker">
+              <div>
+                <h3>Your preferred start time</h3>
+                <p>Choose any exact minute. Existing bookings for this date are listed beside it.</p>
+              </div>
+              <label>
+                Preferred start time
+                <input type="time" value={preferredTime} onChange={(event) => setPreferredTime(event.target.value)} />
+              </label>
+              <div className="booked-list">
+                <span>Already booked</span>
+                <strong>{selectedSlots.length ? selectedSlots.map((slot) => formatTime(slot.booked_time)).join(', ') : 'No booked times'}</strong>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <form className="booking-form" onSubmit={submitBooking}>
+          <p className="eyebrow">Step 2</p>
+          <h2>Your enquiry</h2>
+          <div className="booking-fields">
+            <label>Name<input name="customer_name" required value={form.customer_name} onChange={updateField} /></label>
+            <label>Email<input name="email" type="email" required value={form.email} onChange={updateField} /></label>
+            <label>Phone<input name="phone" required value={form.phone} onChange={updateField} /></label>
+            <label>Suburb<input name="suburb" required value={form.suburb} onChange={updateField} /></label>
+            <label className="wide">Address<input name="job_address" placeholder="Street number and street name" required value={form.job_address} onChange={updateField} /></label>
+            <label className="wide">Service
+              <select name="service_type" value={form.service_type} onChange={updateField}>
+                <option>End of lease cleaning</option>
+                <option>Home cleaning</option>
+                <option>Commercial cleaning</option>
+                <option>Carpet steam cleaning</option>
+                <option>Oven cleaning</option>
+                <option>Window cleaning</option>
+              </select>
+            </label>
+            <label className="wide">Property details
+              <textarea name="customer_notes" placeholder="Size, condition, access notes…" value={form.customer_notes} onChange={updateField} />
+            </label>
+          </div>
+
+          <div className="booking-summary">
+            <span>Preferred date<strong>{selectedDate ? new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${selectedDate}T00:00:00`)) : 'Choose a date'}</strong></span>
+            <span>Preferred start<strong>{formatTime(preferredTime)}</strong></span>
+          </div>
+          <button className="booking-submit" disabled={!selectedDate || state.status === 'loading'} type="submit">
+            {state.status === 'loading' ? 'Sending…' : 'Send booking enquiry →'}
+          </button>
+          {state.message && <p className={`form-message ${state.status}`}>{state.message}</p>}
+        </form>
+      </section>
+    </main>
   );
 }
 
@@ -510,7 +675,6 @@ function Footer({ navigate }) {
         <a href="#services">Services</a>
         <a href="#pricing">Pricing</a>
         <button type="button" onClick={() => navigate('booking')}>Availability</button>
-        <button type="button" onClick={() => navigate('admin')}>Admin</button>
       </nav>
       <small>© 2026 4 Sons Cleaning & Maintenance Services. *Offers and bond-back guarantee are subject to conditions.</small>
     </footer>
